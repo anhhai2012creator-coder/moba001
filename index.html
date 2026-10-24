@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ASTRAL ARENA 3D - MOBA 3v3 (v1.0.0)</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Thư viện Three.js r128 ổn định cho đồ họa 3D WebGL -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <!-- Canvas 3D dùng chung cho Sảnh Chờ 3D và Đấu Trường Isometric 3v3 -->
+  <div id="webgl-container"></div>
+  <!-- Lớp hiển thị Thanh máu 3D & Số sát thương nổi -->
+  <div id="world-ui-layer"></div>
+
+  <!-- ==================== GIAO DIỆN SẢNH CHỜ (MAIN LOBBY) ==================== -->
+  <div id="lobby-screen" class="screen active">
+    <!-- Thanh đỉnh: Thông tin người chơi & 3 Tài nguyên -->
+    <header class="lobby-topbar">
+      <div class="player-badge">
+        <div class="avatar-frame" id="lobby-avatar">⚔️</div>
+        <div class="player-meta">
+          <div class="player-name">CHIẾN BINH ASTRAL <span class="version-tag">v1.0.0</span></div>
+          <div class="player-rank-mini" id="lobby-rank-mini">Đồng III - 0 Sao</div>
+        </div>
+      </div>
+
+      <div class="resource-bar">
+        <div class="res-pill gold-pill" title="Vàng: Nhận sau trận đấu, dùng mua Nhân vật">
+          <span class="res-icon">🪙</span>
+          <span class="res-label">Vàng:</span>
+          <span id="res-gold">18888</span>
+        </div>
+        <div class="res-pill diamond-pill" title="Kim Cương: Dùng mua Nhân vật & Skin">
+          <span class="res-icon">💎</span>
+          <span class="res-label">Kim Cương:</span>
+          <span id="res-diamond">600</span>
+        </div>
+        <div class="res-pill ruby-pill" title="Ruby: Dùng quay Sự Kiện Tinh Hệ">
+          <span class="res-icon">♦️</span>
+          <span class="res-label">Ruby:</span>
+          <span id="res-ruby">150</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Thông tin Tướng 3D đang trưng bày giữa sảnh -->
+    <div class="lobby-hero-showcase-info">
+      <div class="showcase-role" id="showcase-role">PHÁP SƯ</div>
+      <h1 class="showcase-name" id="showcase-name">AURELIA</h1>
+      <div class="showcase-title" id="showcase-title">The Astral Weaver</div>
+      <div class="showcase-skin-badge" id="showcase-skin">Mặc định</div>
+      <div class="showcase-controls">
+        <button class="btn-secondary btn-sm" id="btn-prev-showcase">◀ Tướng Trước</button>
+        <button class="btn-secondary btn-sm" id="btn-next-showcase">Tướng Sau ▶</button>
+      </div>
+    </div>
+
+    <!-- Cụm nút chính ngoài Sảnh Chờ -->
+    <footer class="lobby-bottombar">
+      <div class="lobby-nav-buttons">
+        <button class="lobby-nav-btn" id="btn-open-heroes">
+          <span class="nav-icon">🛡️</span>
+          <div class="nav-text">
+            <strong>NHÂN VẬT</strong>
+            <small>Đã có & Chưa có</small>
+          </div>
+        </button>
+
+        <button class="lobby-nav-btn" id="btn-open-shop">
+          <span class="nav-icon">🏪</span>
+          <div class="nav-text">
+            <strong>CỬA HÀNG</strong>
+            <small>Tướng, Skin & Sự kiện</small>
+          </div>
+        </button>
+
+        <button class="lobby-nav-btn" id="btn-open-ranked">
+          <span class="nav-icon">🏆</span>
+          <div class="nav-text">
+            <strong>XẾP HẠNG</strong>
+            <small>14 Bậc Rank 3v3</small>
+          </div>
+        </button>
+      </div>
+
+      <button class="btn-play-ranked" id="btn-quick-ranked">
+        <span class="play-title">ĐẤU XẾP HẠNG 3v3</span>
+        <span class="play-sub" id="play-btn-rank-sub">Rank hiện tại: Đồng III</span>
+      </button>
+    </footer>
+  </div>
+
+  <!-- ==================== MODAL 1: NHÂN VẬT (HEROES) ==================== -->
+  <div id="modal-heroes" class="modal-overlay hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>DANH SÁCH NHÂN VẬT (12 TƯỚNG)</h2>
+        <div class="filter-tabs" id="hero-role-filters">
+          <button class="tab-btn active" data-filter="ALL">Tất cả</button>
+          <button class="tab-btn" data-filter="Mage">Pháp Sư</button>
+          <button class="tab-btn" data-filter="Tank">Đỡ Đòn</button>
+          <button class="tab-btn" data-filter="Assassin">Sát Thủ</button>
+          <button class="tab-btn" data-filter="Fighter">Đấu Sĩ</button>
+          <button class="tab-btn" data-filter="OWNED">Đã sở hữu</button>
+          <button class="tab-btn" data-filter="UNOWNED">Chưa sở hữu</button>
+        </div>
+        <button class="btn-close-modal" data-close="modal-heroes">✕</button>
+      </div>
+      <div class="modal-body split-layout">
+        <div class="hero-grid-list" id="heroes-grid-container"></div>
+        <div class="hero-detail-panel" id="hero-detail-panel"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 2: CỬA HÀNG (SHOP & RUBY EVENT) ==================== -->
+  <div id="modal-shop" class="modal-overlay hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>CỬA HÀNG & SỰ KIỆN RUBY</h2>
+        <div class="filter-tabs" id="shop-tab-buttons">
+          <button class="tab-btn active" data-shoptab="heroes">Mua Nhân Vật</button>
+          <button class="tab-btn" data-shoptab="skins">Mua Skin 3D</button>
+          <button class="tab-btn" data-shoptab="ruby">Sự Kiện Ruby (Vòng Quay)</button>
+        </div>
+        <button class="btn-close-modal" data-close="modal-shop">✕</button>
+      </div>
+      <div class="modal-body" id="shop-content-container"></div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 3: XẾP HẠNG & CHỌN TƯỚNG 3v3 ==================== -->
+  <div id="modal-ranked" class="modal-overlay hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>HỆ THỐNG XẾP HẠNG 14 BẬC (3v3 ISOMETRIC)</h2>
+        <button class="btn-close-modal" data-close="modal-ranked">✕</button>
+      </div>
+      <div class="modal-body ranked-layout">
+        <div class="rank-current-card" id="rank-current-card"></div>
+        <div class="rank-ladder-list" id="rank-ladder-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 4: CHỌN TƯỚNG TRƯỚC TRẬN (DRAFT 3v3) ==================== -->
+  <div id="modal-draft" class="modal-overlay hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>CHUẨN BỊ ĐẤU HẠNG 3v3 — CHỌN NHÂN VẬT</h2>
+        <button class="btn-close-modal" data-close="modal-draft">✕</button>
+      </div>
+      <div class="modal-body draft-layout">
+        <div class="draft-teams-bar">
+          <div class="team-box blue-team-box">
+            <h3>PHE XANH (ĐỘI CỦA BẠN)</h3>
+            <div class="draft-slots" id="draft-blue-slots"></div>
+          </div>
+          <div class="vs-badge">VS</div>
+          <div class="team-box red-team-box">
+            <h3>PHE ĐỎ (BOT THEO RANK: <span id="draft-ai-tier-name">Tân Binh</span>)</h3>
+            <div class="draft-slots" id="draft-red-slots"></div>
+          </div>
+        </div>
+
+        <div class="draft-selector-title">Chọn Nhân Vật Đã Sở Hữu:</div>
+        <div class="draft-hero-pool" id="draft-hero-pool"></div>
+
+        <div class="draft-footer">
+          <div class="draft-selected-skill-preview" id="draft-skill-preview"></div>
+          <button class="btn-start-match" id="btn-launch-match">VÀO ĐẤU TRƯỜNG 3D ▶</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== GIAO DIỆN TRONG TRẬN (IN-GAME HUD) ==================== -->
+  <div id="match-screen" class="screen">
+    <!-- Bảng tỉ số, Thời gian & Minimap ở góc trên -->
+    <div class="hud-top-left">
+      <canvas id="minimap-canvas" width="210" height="96"></canvas>
+      <div class="minimap-caption">Bản đồ 3v3 (Trụ, Rừng & Boss)</div>
+    </div>
+
+    <div class="hud-top-center">
+      <div class="score-team blue-score" id="hud-score-blue">0</div>
+      <div class="match-clock-box">
+        <div class="match-timer" id="hud-match-timer">00:00</div>
+        <div class="boss-status" id="hud-boss-status">Boss: 02:00</div>
+      </div>
+      <div class="score-team red-score" id="hud-score-red">0</div>
+    </div>
+
+    <div class="hud-top-right">
+      <button class="btn-hud-shop" id="btn-open-ingame-shop">
+        🛒 SHOP TRANG BỊ (<span id="hud-gold-text">300</span> 🪙)
+      </button>
+      <button class="btn-hud-surrender" id="btn-leave-match" title="Rời trận về sảnh">🏳️</button>
+    </div>
+
+    <!-- Thông báo Hạ gục / Phá trụ / Nội tại kích hoạt -->
+    <div id="hud-banner-feed" class="hud-banner-feed"></div>
+
+    <!-- Bảng thông tin Tướng người chơi & 6 Ô Trang bị -->
+    <div class="hud-bottom-left-cluster">
+      <!-- Joystick ảo hỗ trợ cảm ứng & kéo chuột -->
+      <div class="joystick-zone" id="joystick-zone">
+        <div class="joystick-base" id="joystick-base">
+          <div class="joystick-stick" id="joystick-stick"></div>
+        </div>
+        <div class="controls-hint">WASD / Chuột Phải / Kéo Joystick</div>
+      </div>
+
+      <!-- Khung chỉ số Nhân vật và Trang bị hiện tại -->
+      <div class="player-status-card">
+        <div class="status-header">
+          <span class="hero-lvl-badge" id="hud-hero-level">Lv.1</span>
+          <strong id="hud-hero-name">AURELIA</strong>
+          <span class="kda-badge" id="hud-kda">0 / 0 / 0</span>
+        </div>
+        <div class="bars-wrapper">
+          <div class="bar-track hp-track">
+            <div class="bar-fill hp-fill" id="hud-hp-bar"></div>
+            <div class="bar-fill shield-fill" id="hud-shield-bar"></div>
+            <span class="bar-text" id="hud-hp-text">1000 / 1000</span>
+          </div>
+          <div class="bar-track mp-track">
+            <div class="bar-fill mp-fill" id="hud-mp-bar"></div>
+            <span class="bar-text" id="hud-mp-text">400 / 400</span>
+          </div>
+          <div class="bar-track exp-track">
+            <div class="bar-fill exp-fill" id="hud-exp-bar"></div>
+          </div>
+        </div>
+        <div class="stats-mini-grid" id="hud-stats-grid"></div>
+        <div class="equipped-items-row" id="hud-items-row"></div>
+      </div>
+    </div>
+
+    <!-- Cụm nút Kỹ năng (3 Chiêu + Nội tại + Đánh thường + Hồi máu) -->
+    <div class="hud-bottom-right-skills">
+      <div class="passive-indicator" id="hud-passive-slot" title="Nội tại nhân vật">
+        <span class="skill-key">P</span>
+        <span class="skill-label" id="hud-passive-name">Nội tại</span>
+      </div>
+
+      <button class="skill-btn aux-btn" id="btn-skill-recall" title="Phím B: Hồi máu & tăng tốc ngắn">
+        <span class="skill-key">B</span>
+        <span class="skill-icon">💚</span>
+        <span class="skill-name-mini">Hồi Phục</span>
+        <div class="cd-overlay hidden" id="cd-recall"></div>
+      </button>
+
+      <button class="skill-btn" id="btn-skill-1" title="Phím Q: Kỹ năng 1">
+        <span class="skill-key">Q</span>
+        <span class="skill-icon" id="icon-skill-1">☄️</span>
+        <span class="skill-name-mini" id="name-skill-1">Chiêu 1</span>
+        <div class="cd-overlay hidden" id="cd-skill-1"></div>
+      </button>
+
+      <button class="skill-btn" id="btn-skill-2" title="Phím W: Kỹ năng 2">
+        <span class="skill-key">W</span>
+        <span class="skill-icon" id="icon-skill-2">🌀</span>
+        <span class="skill-name-mini" id="name-skill-2">Chiêu 2</span>
+        <div class="cd-overlay hidden" id="cd-skill-2"></div>
+      </button>
+
+      <button class="skill-btn ult-btn" id="btn-skill-3" title="Phím E: Chiêu cuối (Mở ở Lv.4)">
+        <span class="skill-key">E</span>
+        <span class="skill-icon" id="icon-skill-3">🌟</span>
+        <span class="skill-name-mini" id="name-skill-3">Chiêu 3</span>
+        <div class="cd-overlay hidden" id="cd-skill-3"></div>
+      </button>
+
+      <button class="attack-btn" id="btn-basic-attack" title="Phím Space / A: Đánh thường">
+        <span class="atk-icon">⚔️</span>
+        <span class="atk-sub">ĐÁNH (Space)</span>
+      </button>
+    </div>
+
+    <!-- Màn hình chờ Hồi sinh khi tử trận -->
+    <div id="respawn-banner" class="respawn-banner hidden">
+      BẠN ĐÃ TỬ TRẬN — HỒI SINH SAU <span id="respawn-timer-text">5</span> GIÂY
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 5: SHOP TRANG BỊ TRONG TRẬN (25 MÓN) ==================== -->
+  <div id="modal-ingame-shop" class="modal-overlay hidden">
+    <div class="modal-window ingame-shop-window">
+      <div class="modal-header">
+        <h2>SHOP TRANG BỊ TRONG TRẬN — VÀNG: <span id="shop-ingame-gold">300</span> 🪙</h2>
+        <div class="filter-tabs" id="ingame-shop-tabs">
+          <button class="tab-btn active" data-itemcat="ALL">Tất cả (25)</button>
+          <button class="tab-btn" data-itemcat="Physical">Công Vật Lý (8)</button>
+          <button class="tab-btn" data-itemcat="Magic">Công Phép (7)</button>
+          <button class="tab-btn" data-itemcat="Defense">Đỡ Đòn (6)</button>
+          <button class="tab-btn" data-itemcat="Boots">Giày (4)</button>
+        </div>
+        <button class="btn-close-modal" data-close="modal-ingame-shop">✕</button>
+      </div>
+      <div class="modal-body split-layout">
+        <div class="items-catalog-grid" id="ingame-items-grid"></div>
+        <div class="item-inspector-panel" id="ingame-item-inspector"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 6: TỔNG KẾT TRẬN ĐẤU & LÊN RANK ==================== -->
+  <div id="modal-postmatch" class="modal-overlay hidden">
+    <div class="modal-window postmatch-window">
+      <div class="postmatch-content" id="postmatch-content"></div>
+    </div>
+  </div>
+
+  <!-- Toast thông báo nhanh -->
+  <div id="toast-container"></div>
+
+  <!-- Nạp các file mã nguồn theo thứ tự kiến trúc -->
+  <script src="src/data/gameData.js"></script>
+  <script src="src/engine/World3D.js"></script>
+  <script src="src/game/GameCore.js"></script>
+</body>
+</html>
